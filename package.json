@@ -1,12 +1,21 @@
 {
   "name": "flutter-backend",
   "version": "1.0.0",
-  "description": "",
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DiligentSolver/flutter-backend.git"
+  },
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/DiligentSolver/flutter-backend/issues"
+  },
+  "homepage": "https://github.com/DiligentSolver/flutter-backend#readme",
+  "description": ""
 }
