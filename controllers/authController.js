@@ -1,7 +1,7 @@
 const User = require("../models/userModel");
 const jwt = require("jsonwebtoken");
 const { generateOTP } = require("../utils/otpGenerator");
-const { sendOTP } = require("../utils/sendOtp");
+const { sendOtp } = require("../utils/sendOtp");
 
 exports.sendOtp = async (req, res) => {
   const { mobile } = req.body;
@@ -18,7 +18,7 @@ exports.sendOtp = async (req, res) => {
     }
 
     await user.save();
-    await sendOTP(mobile, otp);
+    await sendOtp(mobile, otp);
     res.status(200).json({ message: "OTP sent successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
