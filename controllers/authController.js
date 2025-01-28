@@ -1,36 +1,48 @@
-const jwt = require("jsonwebtoken");
 const User = require("../models/userModel");
-const { sendOtp } = require("../utils/twilio");
-
-// Generate random 6-digit OTP
-const generateOtp = () =>
-  Math.floor(100000 + Math.random() * 900000).toString();
+const jwt = require("jsonwebtoken");
+const { generateOTP } = require("../utils/otpGenerator");
+const { sendOTP } = require("../utils/sendOtp");
 
 exports.sendOtp = async (req, res) => {
   const { mobile } = req.body;
-
-  if (!mobile) {
-    return res.status(400).json({ message: "Mobile number is required" });
-  }
-
   try {
     let user = await User.findOne({ mobile });
+    const otp = generateOTP();
+    const otpExpiry = new Date(Date.now() + process.env.OTP_EXPIRY * 60000);
 
-    // If user doesn't exist, create a new one
     if (!user) {
-      user = await User.create({ mobile });
+      user = new User({ mobile, otp, otpExpiry });
+    } else {
+      user.otp = otp;
+      user.otpExpiry = otpExpiry;
     }
 
-    // Generate OTP and set expiry
-    const otp = generateOtp();
-    user.otp = otp;
-    user.otpExpiry = Date.now() + 10 * 60 * 1000; // OTP valid for 10 minutes
+    await user.save();
+    await sendOTP(mobile, otp);
+    res.status(200).json({ message: "OTP sent successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.verifyOtp = async (req, res) => {
+  const { mobile, otp } = req.body;
+  try {
+    const user = await User.findOne({ mobile });
+
+    if (!user || user.otp !== otp || user.otpExpiry < new Date()) {
+      return res.status(400).json({ message: "Invalid OTP or OTP expired" });
+    }
+
+    user.isVerified = true;
+    user.otp = undefined;
+    user.otpExpiry = undefined;
     await user.save();
 
-    // Send OTP via Twilio
-    await sendOtp(mobile, otp);
-
-    res.status(200).json({ message: "OTP sent successfully" });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "1d",
+    });
+    res.status(200).json({ token, user });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
