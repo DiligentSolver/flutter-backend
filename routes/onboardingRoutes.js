@@ -5,7 +5,8 @@ const router = express.Router();
 router.get("/video", (req, res) => {
   try {
     // Construct the URL of the video hosted on the API server
-    const videoUrl = "https://13.201.133.57/videos/onboarding.mp4"; // Build the complete video URL
+    const videoUrl =
+      "https://ik.imagekit.io/zf8c9okck/H_M_vs_Zara__which_would_you_choose______shorts(1080p).mp4"; // Build the complete video URL
     res.status(200).json({ videoUrl });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch video URL" });
