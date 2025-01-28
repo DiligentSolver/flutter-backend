@@ -5,7 +5,7 @@ const router = express.Router();
 router.get("/video", (req, res) => {
   try {
     const videoUrl =
-      "https://drive.google.com/file/d/1Frj3JBXb2BpKHdKacNOo6Png9kBXooPO/view?usp=drivesdk"; // Update with the actual URL of your video.
+      "https://drive.google.com/uc?export=download&id=1Frj3JBXb2BpKHdKacNOo6Png9kBXooPO"; // Update with the actual URL of your video.
     res.status(200).json({ videoUrl });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch video URL" });
