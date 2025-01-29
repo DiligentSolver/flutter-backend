@@ -1,15 +1,21 @@
+const User = require("../models/userModel");
+const jwt = require("jsonwebtoken");
+
 exports.verifyOtp = async (req, res) => {
-  const { mobile, otp } = req.body;
+  const { mobile, otp, name, email, address } = req.body;
 
   if (!mobile || !otp) {
     return res.status(400).json({ message: "Mobile and OTP are required" });
   }
 
   try {
-    const user = await User.findOne({ mobile });
+    let user = await User.findOne({ mobile });
 
+    // If user does not exist, create a new user
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res
+        .status(404)
+        .json({ message: "User not found, please register first." });
     }
 
     // Check if OTP is valid
@@ -21,6 +27,19 @@ exports.verifyOtp = async (req, res) => {
     user.isVerified = true;
     user.otp = null;
     user.otpExpiry = null;
+
+    // If the user is new (i.e., no name, email, or address), update profile details
+    if (!user.name && !user.email && !user.address) {
+      if (!name || !email || !address) {
+        return res
+          .status(400)
+          .json({ message: "Profile details are required for new users." });
+      }
+      user.name = name;
+      user.email = email;
+      user.address = address;
+    }
+
     await user.save();
 
     // Generate JWT
