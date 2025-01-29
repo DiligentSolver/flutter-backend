@@ -9,7 +9,8 @@ const productSchema = new mongoose.Schema({
   imageUrl: { type: String },
   isFeatured: { type: Boolean, default: false },
   onSale: { type: Boolean, default: false },
-  discount: { type: Number, default: 0 }, // Represents discount percentage
+  isNew: { type: Boolean, default: false }, // Flag to indicate if the product is new
+  launchDate: { type: Date }, // Date when the product was launched
   createdAt: { type: Date, default: Date.now },
 });
 
