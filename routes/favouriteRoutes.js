@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const favoriteController = require("../controllers/favoriteController");
+const favoriteController = require("../controllers/favouriteController");
 
 // Add to favorites
 router.post("/", favoriteController.addToFavorites);

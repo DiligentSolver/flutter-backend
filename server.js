@@ -18,6 +18,7 @@ const newProductRoutes = require("./routes/newProductRoutes");
 const featuredProductRoutes = require("./routes/featuredProductRoutes");
 const dealsRoutes = require("./routes/dealsRoutes");
 const saleProductRoutes = require("./routes/saleProductRoutes");
+const recommendedRoutes = require("./routes/recommendedRoutes");
 
 const app = express();
 connectDB();
@@ -32,7 +33,7 @@ app.use("/api/onboarding", onboardingRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/notifications", notificationRoutes);
-app.use("/api/favorites", favoriteRoutes);
+app.use("/api/favorites", favouriteRoutes);
 app.use("/api/location", locationRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/promotions", promotionRoutes);

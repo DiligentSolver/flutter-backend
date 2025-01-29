@@ -1,4 +1,4 @@
-const Product = require("../models/Product");
+const Product = require("../models/productModel");
 
 // Get products with the biggest deals
 exports.getDeals = async (req, res) => {

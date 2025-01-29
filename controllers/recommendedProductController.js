@@ -1,5 +1,5 @@
-const RecommendedProduct = require("../models/RecommendedProduct");
-const Product = require("../models/Product");
+const RecommendedProduct = require("../models/recommendedModel");
+const Product = require("../models/productModel");
 
 // Get recommended products for a specific user
 exports.getRecommendedProducts = async (req, res) => {

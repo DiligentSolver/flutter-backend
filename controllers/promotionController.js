@@ -1,4 +1,4 @@
-const Promotion = require("../models/Promotion");
+const Promotion = require("../models/promotionModel");
 
 // Get all promotions
 exports.getPromotions = async (req, res) => {

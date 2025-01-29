@@ -1,4 +1,4 @@
-const Product = require("../models/Product");
+const Product = require("../models/productModel");
 
 // Get newly launched products
 exports.getNewProducts = async (req, res) => {
