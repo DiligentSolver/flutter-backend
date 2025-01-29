@@ -31,7 +31,6 @@ app.use(errorHandler);
 // Define API routes
 app.use("/api/onboarding", onboardingRoutes);
 app.use("/api/users", userRoutes);
-app.use("/api/products", productRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/favorites", favouriteRoutes);
 app.use("/api/location", locationRoutes);
