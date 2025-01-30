@@ -19,11 +19,13 @@ const featuredProductRoutes = require("./routes/featuredProductRoutes");
 const dealsRoutes = require("./routes/dealsRoutes");
 const saleProductRoutes = require("./routes/saleProductRoutes");
 const recommendedRoutes = require("./routes/recommendedRoutes");
+const videoRoutes = require("./routes/videosRoutes");
 
 const app = express();
 connectDB();
 
 app.use(cors());
+app.use(express.json());
 app.use(bodyParser.json());
 app.use("/api/auth", authRoutes);
 app.use(errorHandler);
@@ -42,11 +44,12 @@ app.use("/api/products/recommended", recommendedRoutes);
 app.use("/api/products/featured", featuredProductRoutes);
 app.use("/api/products/deals", dealsRoutes);
 app.use("/api/products/sale", saleProductRoutes);
+app.use("/api/videos", videoRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
-app.get("/", (req, res) => {
+app.get("/", (res) => {
   res.send("Hello, World!");
   console.log("Hello, World");
 });
