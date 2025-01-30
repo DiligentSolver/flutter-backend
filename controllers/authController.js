@@ -4,6 +4,40 @@ const { generateOTP } = require("../utils/otpGenerator");
 const { sendOtp } = require("../utils/sendOtp");
 const { client, connectRedis } = require("../utils/redisClient");
 
+exports.resendOtp = async (req, res) => {
+  const { mobile } = req.body;
+
+  try {
+    await connectRedis(); // Ensure Redis connection
+
+    // Check if OTP is already requested within cooldown period (e.g., 30 sec)
+    const existingOtp = await client.get(`otp:${mobile}`);
+    if (existingOtp) {
+      return res
+        .status(429)
+        .json({
+          message: "OTP already sent. Please wait before requesting again.",
+        });
+    }
+
+    const otp = generateOTP();
+    const otpExpiry = process.env.OTP_EXPIRY * 60; // Convert minutes to seconds
+
+    // Store new OTP in Redis
+    await client.setEx(`otp:${mobile}`, otpExpiry, otp);
+
+    await client.quit();
+
+    // Send OTP via Twilio
+    await sendOtp(mobile, otp);
+
+    res.status(200).json({ message: "OTP resent successfully" });
+  } catch (err) {
+    console.error("Error resending OTP:", err);
+    res.status(500).json({ error: "Failed to resend OTP. Please try again." });
+  }
+};
+
 exports.sendOtp = async (req, res) => {
   const { mobile } = req.body;
 

@@ -4,15 +4,21 @@ const verifyToken = require("../middlewares/authMiddleware");
 
 const router = express.Router();
 
-// Get paginated videos
-router.get("/videos?page=1&limit=10", async (req, res) => {
-  const { page = 1, limit = 10 } = req.query;
-  const videos = await Video.find()
-    .skip((page - 1) * limit)
-    .limit(Number(limit))
-    .sort({ _id: -1 });
+router.get("/videos", async (req, res) => {
+  try {
+    const page = Number(req.query.page) || 1; // Convert page to a number, default to 1
+    const limit = Number(req.query.limit) || 10; // Convert limit to a number, default to 10
 
-  res.json(videos);
+    const videos = await Video.find()
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .sort({ _id: -1 });
+
+    res.json(videos);
+  } catch (error) {
+    console.error("Error fetching videos:", error);
+    res.status(500).json({ message: "Failed to fetch videos" });
+  }
 });
 
 // Like a video
