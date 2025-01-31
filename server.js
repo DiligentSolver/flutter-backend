@@ -20,6 +20,7 @@ const dealsRoutes = require("./routes/dealsRoutes");
 const saleProductRoutes = require("./routes/saleProductRoutes");
 const recommendedRoutes = require("./routes/recommendedRoutes");
 const videoRoutes = require("./routes/videosRoutes");
+const { client } = require("./utils/redisClient");
 
 const app = express();
 connectDB();
@@ -53,3 +54,16 @@ app.get("/", (res) => {
   res.send("Hello, World!");
   console.log("Hello, World");
 });
+
+async function closeRedis() {
+  if (client.isOpen) {
+    console.log("Closing Redis connection...");
+    await client.quit();
+  } else {
+    console.log("Redis client is already closed.");
+  }
+  process.exit(0);
+}
+
+process.on("SIGINT", closeRedis); // Handles Ctrl + C
+process.on("SIGTERM", closeRedis); // Handles process termination
