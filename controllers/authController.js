@@ -9,19 +9,24 @@ exports.resendOtp = async (req, res) => {
 
   try {
     await connectRedis(); // Ensure Redis connection
+
     // // Check if OTP is already requested within cooldown period (e.g., 30 sec)
     const existingOtp = await client.get(`otp:${mobile}`);
     if (existingOtp) {
+      await client.quit();
       return res.status(429).json({
         message: "OTP already sent. Please wait before requesting again.",
       });
     }
-
+    // Delete OTP from Redis after verification
+    await client.del(`otp:${mobile}`);
     const otp = generateOTP();
     const otpExpiry = process.env.OTP_EXPIRY * 60; // Convert minutes to seconds
 
     // Store new OTP in Redis
     await client.setEx(`otp:${mobile}`, otpExpiry, otp);
+
+    await client.quit();
 
     // Send OTP via Twilio
     await sendOtp(mobile, otp);
@@ -29,6 +34,7 @@ exports.resendOtp = async (req, res) => {
     res.status(200).json({ message: "OTP resent successfully" });
   } catch (err) {
     console.error("Error resending OTP:", err);
+    await client.quit();
     res.status(500).json({ error: "Failed to resend OTP. Please try again." });
   }
 };
@@ -51,9 +57,12 @@ exports.sendOtp = async (req, res) => {
     // Send OTP via Twilio
     await sendOTP(mobile, otp);
 
+    await client.quit();
+
     res.status(200).json({ message: "OTP sent successfully" });
   } catch (err) {
     console.error("Error sending OTP:", err);
+    await client.quit();
     res.status(500).json({ error: "Failed to send OTP. Please try again." });
   }
 };
@@ -69,11 +78,13 @@ exports.verifyOtp = async (req, res) => {
     const storedOtp = await client.get(`otp:${mobile}`);
 
     if (!storedOtp || storedOtp !== otp) {
+      await client.quit();
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
     // Delete OTP from Redis after verification
     await client.del(`otp:${mobile}`);
+    await client.quit();
 
     let user = await User.findOne({ mobile });
 
@@ -121,6 +132,7 @@ exports.verifyOtp = async (req, res) => {
     });
   } catch (err) {
     console.error("Error verifying OTP:", err);
+    await client.quit();
     res.status(500).json({ error: "Failed to verify OTP. Please try again." });
   }
 };
