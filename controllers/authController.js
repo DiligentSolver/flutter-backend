@@ -52,6 +52,8 @@ exports.sendOtp = async (req, res) => {
     // **Wait for Redis to process the OTP**
     await new Promise((resolve) => setTimeout(resolve, 500));
 
+    await client.quit();
+
     // Send OTP via Twilio
     await sendOTP(mobile, otp);
 
