@@ -69,13 +69,11 @@ exports.verifyOtp = async (req, res) => {
     // Get OTP from Redis
     const storedOtp = await client.get(`otp:${mobile}`);
 
-    console.log(`Received OTP: ${otp}`);
+    console.log(`Stored OTP: ${storedOtp}, Received OTP: ${otp}`);
 
     if (!storedOtp || storedOtp !== otp) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
-
-    console.log(`Stored OTP: ${storedOtp}, Received OTP: ${otp}`);
 
     // Delete OTP from Redis after verification
     await client.del(`otp:${mobile}`);
