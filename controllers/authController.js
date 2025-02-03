@@ -22,8 +22,6 @@ exports.resendOtp = async (req, res) => {
     // Store new OTP in Redis
     await client.setEx(`otp:${mobile}`, otpExpiry, otp);
 
-    await client.quit();
-
     // Send OTP via Twilio
     await sendOtp(mobile, otp);
 
@@ -38,8 +36,6 @@ exports.sendOtp = async (req, res) => {
   const { mobile } = req.body;
 
   try {
-    // Ensure Redis client is connected
-    await connectRedis();
     await client.del(`otp:${mobile}`); // Delete any old OTP before storing a new one
 
     const otp = generateOTP();
@@ -50,8 +46,6 @@ exports.sendOtp = async (req, res) => {
 
     // Get OTP from Redis
     const storedOtp = await client.get(`otp:${mobile}`);
-
-    await client.quit();
 
     // Send OTP via Twilio
     await sendOtp(mobile, otp);
@@ -70,21 +64,15 @@ exports.verifyOtp = async (req, res) => {
   const { mobile, otp, name, email, address } = req.body;
 
   try {
-    // Ensure Redis client is connected
-    await connectRedis();
-
     // Get OTP from Redis
     const storedOtp = await client.get(`otp:${mobile}`);
 
     if (!storedOtp || storedOtp !== otp) {
-      await client.quit();
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
     // Delete OTP from Redis after verification
     await client.del(`otp:${mobile}`);
-
-    await client.quit();
 
     let user = await User.findOne({ mobile });
 
@@ -133,6 +121,5 @@ exports.verifyOtp = async (req, res) => {
   } catch (err) {
     console.error("Error verifying OTP:", err);
     res.status(500).json({ error: "Failed to verify OTP. Please try again." });
-    await client.quit();
   }
 };
