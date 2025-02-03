@@ -60,8 +60,6 @@ exports.sendOtp = async (req, res) => {
   } catch (err) {
     console.error("Error sending OTP:", err);
     res.status(500).json({ error: "Failed to send OTP. Please try again." });
-  } finally {
-    client.quit();
   }
 };
 
@@ -69,9 +67,6 @@ exports.verifyOtp = async (req, res) => {
   const { mobile, otp, name, email, address } = req.body;
 
   try {
-    // Ensure Redis client is connected
-    await connectRedis();
-
     // Get OTP from Redis
     const storedOtp = await client.get(`otp:${mobile}`);
 
