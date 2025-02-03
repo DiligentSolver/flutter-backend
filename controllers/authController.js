@@ -50,7 +50,7 @@ exports.sendOtp = async (req, res) => {
     console.log(`Generated OTP: ${otp}, Expiry Time: ${otpExpiry} seconds`);
 
     // Store OTP in Redis
-    const result = await client.setEx(`otp:${mobile}`, otpExpiry, otp);
+    await client.setEx(`otp:${mobile}`, otpExpiry, otp);
 
     // Fetch the stored OTP immediately after setting it
     const storedOtp = await client.get(`otp:${mobile}`);
