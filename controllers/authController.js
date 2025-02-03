@@ -51,7 +51,7 @@ exports.sendOtp = async (req, res) => {
     const storedOtp = await client.get(`otp:${mobile}`);
 
     console.log("OTP Expiry Time:", otpExpiry);
-    console.log("Stored OTP:", storedOtp, "Received OTP:", otp);
+    console.log("Stored OTP:", storedOtp, "Generated OTP:", otp);
 
     // Send OTP via Twilio
     await sendOTP(mobile, otp);
@@ -79,7 +79,7 @@ exports.verifyOtp = async (req, res) => {
       await client.quit();
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
-
+    console.log("Stored OTP:", storedOtp, "Received OTP:", otp);
     // Delete OTP from Redis after verification
     await client.del(`otp:${mobile}`);
 
