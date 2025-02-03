@@ -9,7 +9,6 @@ exports.resendOtp = async (req, res) => {
 
   try {
     await connectRedis(); // Ensure Redis connection
-
     // Check if OTP is already requested within cooldown period (e.g., 30 sec)
     const existingOtp = await client.get(`otp:${mobile}`);
     if (existingOtp) {
@@ -43,6 +42,8 @@ exports.sendOtp = async (req, res) => {
     // Ensure Redis client is connected
     await connectRedis();
 
+    // Delete OTP from Redis after verification
+    await client.del(`otp:${mobile}`);
     const otp = generateOTP();
     const otpExpiry = process.env.OTP_EXPIRY * 60; // Convert minutes to seconds
 
