@@ -56,12 +56,12 @@ exports.sendOtp = async (req, res) => {
     // Send OTP via Twilio
     await sendOTP(mobile, otp);
 
-    client.quit();
-
     res.status(200).json({ message: "OTP sent successfully" });
   } catch (err) {
     console.error("Error sending OTP:", err);
     res.status(500).json({ error: "Failed to send OTP. Please try again." });
+  } finally {
+    client.quit();
   }
 };
 
