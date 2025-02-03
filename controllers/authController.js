@@ -1,7 +1,7 @@
 const User = require("../models/userModel");
 const jwt = require("jsonwebtoken");
 const { generateOTP } = require("../utils/otpGenerator");
-const { sendOtp } = require("../utils/sendOtp");
+const { sendOTP } = require("../utils/sendOtp");
 const { client, connectRedis } = require("../utils/redisClient");
 
 exports.resendOtp = async (req, res) => {
@@ -49,7 +49,7 @@ exports.sendOtp = async (req, res) => {
     await client.setEx(`otp:${mobile}`, otpExpiry, otp);
 
     // Send OTP via Twilio
-    await sendOtp(mobile, otp);
+    await sendOTP(mobile, otp);
 
     res.status(200).json({ message: "OTP sent successfully" });
   } catch (err) {
