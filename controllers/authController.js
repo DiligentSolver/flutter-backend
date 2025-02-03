@@ -42,6 +42,7 @@ exports.sendOtp = async (req, res) => {
   try {
     // Ensure Redis client is connected
     await connectRedis();
+    await client.del(`otp:${mobile}`); // Delete any old OTP before storing a new one
 
     const otp = generateOTP();
     const otpExpiry = process.env.OTP_EXPIRY * 60; // Convert minutes to seconds
