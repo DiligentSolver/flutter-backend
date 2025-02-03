@@ -6,7 +6,7 @@ const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
 const client = twilio(accountSid, authToken);
 
-exports.sendOtp = async (mobile, otp) => {
+exports.sendOTP = async (mobile, otp) => {
   try {
     console.log(`Sending OTP via Twilio: ${otp} to ${mobile}`);
     const message = await client.messages.create({
