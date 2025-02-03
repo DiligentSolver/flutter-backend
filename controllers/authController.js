@@ -1,7 +1,7 @@
 const User = require("../models/userModel");
 const jwt = require("jsonwebtoken");
 const { generateOTP } = require("../utils/otpGenerator");
-const { sendOtp } = require("../utils/sendOtp");
+const { sendOTP } = require("../utils/sendOtp");
 const { client, connectRedis } = require("../utils/redisClient");
 
 exports.resendOtp = async (req, res) => {
