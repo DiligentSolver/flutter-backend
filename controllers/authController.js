@@ -13,11 +13,9 @@ exports.resendOtp = async (req, res) => {
     // Check if OTP is already requested within cooldown period (e.g., 30 sec)
     const existingOtp = await client.get(`otp:${mobile}`);
     if (existingOtp) {
-      return res
-        .status(429)
-        .json({
-          message: "OTP already sent. Please wait before requesting again.",
-        });
+      return res.status(429).json({
+        message: "OTP already sent. Please wait before requesting again.",
+      });
     }
 
     const otp = generateOTP();
@@ -56,6 +54,9 @@ exports.sendOtp = async (req, res) => {
     // Send OTP via Twilio
     await sendOtp(mobile, otp);
 
+    console.log("OTP Expiry Time:", otpExpiry);
+    console.log("Stored OTP:", storedOtp, "Received OTP:", otp);
+
     res.status(200).json({ message: "OTP sent successfully" });
   } catch (err) {
     console.error("Error sending OTP:", err);
@@ -77,11 +78,6 @@ exports.verifyOtp = async (req, res) => {
       await client.quit();
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
-
-    // Delete OTP from Redis after verification
-    await client.del(`otp:${mobile}`);
-
-    await client.quit();
 
     let user = await User.findOne({ mobile });
 
