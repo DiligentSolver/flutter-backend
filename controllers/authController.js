@@ -3,53 +3,47 @@ const jwt = require("jsonwebtoken");
 const { generateOTP } = require("../utils/otpGenerator");
 const { sendOTP } = require("../utils/sendOtp");
 const { client, connectRedis } = require("../utils/redisClient");
-const bcrypt = require("bcrypt");
-const OTP = require("../models/otpModel");
 
-const OTP_COOLDOWN = 30 * 1000; // 30 seconds
-const OTP_EXPIRY = 5 * 60 * 1000; // 5 minutes
+const OTP_COOLDOWN = 30; // Cooldown in seconds
+const OTP_VERIFICATION_ATTEMPTS = 5; // Max attempts before blocking
 
 exports.resendOtp = async (req, res) => {
   const { mobile } = req.body;
 
-  console.log(`[resendOtp] Received request for mobile: ${mobile}`);
-
   try {
-    const otpRecord = await OTP.findOne({ mobile });
-    console.log(`[resendOtp] Found OTP record:`, otpRecord);
+    await connectRedis(); // Ensure Redis connection
 
-    if (otpRecord) {
-      const now = Date.now();
-      console.log(`[resendOtp] Checking cooldown...`);
-
-      if (now - otpRecord.updatedAt.getTime() < OTP_COOLDOWN) {
-        console.warn(`[resendOtp] Cooldown active. OTP request denied.`);
-        return res.status(429).json({
-          message: "OTP already sent. Please wait before requesting again.",
-        });
-      }
+    // Check if OTP is already requested within cooldown period
+    const existingOtp = await client.get(`otp:${mobile}`);
+    if (existingOtp) {
+      console.warn(
+        `[${new Date().toISOString()}] OTP Resend Blocked for ${mobile} (Cooldown active)`
+      );
+      return res.status(429).json({
+        message: "OTP already sent. Please wait before requesting again.",
+      });
     }
 
     const otp = generateOTP();
-    console.log(`[resendOtp] Generated OTP: ${otp}`);
+    const otpExpiry = parseInt(process.env.OTP_EXPIRY) * 60; // Convert minutes to seconds
 
-    const hashedOtp = await bcrypt.hash(otp, 10);
-    const expiryTime = new Date(Date.now() + OTP_EXPIRY);
+    // Store new OTP in Redis
+    await client.setEx(`otp:${mobile}`, otpExpiry, otp);
+    await client.setEx(`otp_cooldown:${mobile}`, OTP_COOLDOWN, "1"); // Cooldown tracking
 
-    await OTP.findOneAndUpdate(
-      { mobile },
-      { otp: hashedOtp, expiresAt: expiryTime },
-      { upsert: true, new: true }
+    console.info(
+      `[${new Date().toISOString()}] OTP Resent to ${mobile}: ${otp}`
     );
 
-    console.log(`[resendOtp] OTP saved to database. Expiry: ${expiryTime}`);
-
+    // Send OTP via Twilio
     await sendOTP(mobile, otp);
-    console.log(`[resendOtp] OTP sent successfully to ${mobile}`);
 
     res.status(200).json({ message: "OTP resent successfully" });
   } catch (err) {
-    console.error(`[resendOtp] Error resending OTP:`, err);
+    console.error(
+      `[${new Date().toISOString()}] Error resending OTP for ${mobile}:`,
+      err
+    );
     res.status(500).json({ error: "Failed to resend OTP. Please try again." });
   }
 };
@@ -57,29 +51,38 @@ exports.resendOtp = async (req, res) => {
 exports.sendOtp = async (req, res) => {
   const { mobile } = req.body;
 
-  console.log(`[sendOtp] Received request for mobile: ${mobile}`);
-
   try {
+    await connectRedis(); // Ensure Redis connection
+
+    // Check if OTP cooldown is active
+    const isCoolingDown = await client.get(`otp_cooldown:${mobile}`);
+    if (isCoolingDown) {
+      console.warn(
+        `[${new Date().toISOString()}] OTP Request Blocked for ${mobile} (Cooldown active)`
+      );
+      return res.status(429).json({
+        message: "Please wait before requesting a new OTP.",
+      });
+    }
+
     const otp = generateOTP();
-    console.log(`[sendOtp] Generated OTP: ${otp}`);
+    const otpExpiry = parseInt(process.env.OTP_EXPIRY) * 60; // Convert minutes to seconds
 
-    const hashedOtp = await bcrypt.hash(otp, 10);
-    const otpExpiry = new Date(Date.now() + OTP_EXPIRY);
+    // Store OTP in Redis (expires after OTP_EXPIRY minutes)
+    await client.setEx(`otp:${mobile}`, otpExpiry, otp);
+    await client.setEx(`otp_cooldown:${mobile}`, OTP_COOLDOWN, "1"); // Cooldown tracking
 
-    await OTP.findOneAndUpdate(
-      { mobile },
-      { otp: hashedOtp, expiresAt: otpExpiry },
-      { upsert: true, new: true }
-    );
+    console.info(`[${new Date().toISOString()}] OTP Sent to ${mobile}: ${otp}`);
 
-    console.log(`[sendOtp] OTP saved to database. Expiry: ${otpExpiry}`);
-
+    // Send OTP via Twilio
     await sendOTP(mobile, otp);
-    console.log(`[sendOtp] OTP sent successfully to ${mobile}`);
 
     res.status(200).json({ message: "OTP sent successfully" });
   } catch (err) {
-    console.error(`[sendOtp] Error sending OTP:`, err);
+    console.error(
+      `[${new Date().toISOString()}] Error sending OTP for ${mobile}:`,
+      err
+    );
     res.status(500).json({ error: "Failed to send OTP. Please try again." });
   }
 };
@@ -87,35 +90,42 @@ exports.sendOtp = async (req, res) => {
 exports.verifyOtp = async (req, res) => {
   const { mobile, otp, name, email, address } = req.body;
 
-  console.log(
-    `[verifyOtp] Received request for mobile: ${mobile}, OTP: ${otp}`
-  );
-
   try {
-    const otpRecord = await OTP.findOne({ mobile });
-    console.log(`[verifyOtp] OTP record found:`, otpRecord);
+    await connectRedis(); // Ensure Redis connection
 
-    if (!otpRecord) {
-      console.warn(`[verifyOtp] No OTP record found or expired.`);
+    // Get OTP from Redis
+    const storedOtp = await client.get(`otp:${mobile}`);
+
+    console.info(
+      `[${new Date().toISOString()}] OTP Verification Attempt for ${mobile}: Received ${otp}, Stored ${storedOtp}`
+    );
+
+    if (!storedOtp || storedOtp !== otp) {
+      let attempts = (await client.get(`otp_attempts:${mobile}`)) || 0;
+      attempts = parseInt(attempts) + 1;
+
+      // Store failed attempt count in Redis
+      await client.setEx(`otp_attempts:${mobile}`, 600, attempts); // Lock for 10 mins
+
+      if (attempts >= OTP_VERIFICATION_ATTEMPTS) {
+        console.warn(
+          `[${new Date().toISOString()}] OTP Verification Blocked for ${mobile} (Too many attempts)`
+        );
+        return res
+          .status(429)
+          .json({ message: "Too many failed attempts. Try again later." });
+      }
+
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
-    const isOtpValid = await bcrypt.compare(otp, otpRecord.otp);
-    console.log(`[verifyOtp] OTP validation result: ${isOtpValid}`);
-
-    if (!isOtpValid || otpRecord.expiresAt < new Date()) {
-      console.warn(`[verifyOtp] OTP is invalid or expired.`);
-      return res.status(400).json({ message: "Invalid or expired OTP" });
-    }
-
-    await OTP.deleteOne({ mobile });
-    console.log(`[verifyOtp] OTP deleted after successful verification.`);
+    // Clear OTP and attempt tracking
+    await client.del(`otp:${mobile}`);
+    await client.del(`otp_attempts:${mobile}`);
 
     let user = await User.findOne({ mobile });
 
     if (user) {
-      console.log(`[verifyOtp] Existing user found:`, user);
-
       user.isVerified = true;
       await user.save();
 
@@ -123,7 +133,10 @@ exports.verifyOtp = async (req, res) => {
         expiresIn: "7d",
       });
 
-      console.log(`[verifyOtp] OTP verified. User logged in.`);
+      console.info(
+        `[${new Date().toISOString()}] OTP Verified for Existing User: ${mobile}`
+      );
+
       return res.status(200).json({
         message: "OTP verified successfully",
         token,
@@ -132,7 +145,6 @@ exports.verifyOtp = async (req, res) => {
     }
 
     if (!name || !email || !address) {
-      console.warn(`[verifyOtp] New user missing required details.`);
       return res
         .status(400)
         .json({ message: "New users must provide name, email, and address" });
@@ -145,13 +157,15 @@ exports.verifyOtp = async (req, res) => {
       address,
       isVerified: true,
     });
-
     await newUser.save();
-    console.log(`[verifyOtp] New user registered successfully:`, newUser);
 
     const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
+
+    console.info(
+      `[${new Date().toISOString()}] New User Registered and Verified: ${mobile}`
+    );
 
     return res.status(201).json({
       message: "New user registered and verified successfully",
@@ -159,7 +173,10 @@ exports.verifyOtp = async (req, res) => {
       user: newUser,
     });
   } catch (err) {
-    console.error(`[verifyOtp] Error verifying OTP:`, err);
+    console.error(
+      `[${new Date().toISOString()}] Error verifying OTP for ${mobile}:`,
+      err
+    );
     res.status(500).json({ error: "Failed to verify OTP. Please try again." });
   }
 };
