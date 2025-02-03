@@ -3,28 +3,43 @@ const jwt = require("jsonwebtoken");
 const { generateOTP } = require("../utils/otpGenerator");
 const { sendOTP } = require("../utils/sendOtp");
 const { client, connectRedis } = require("../utils/redisClient");
+const bcrypt = require("bcrypt");
+const OTP = require("../models/otpModel");
+
+const OTP_COOLDOWN = 30 * 1000; // 30 seconds
+const OTP_EXPIRY = 5 * 60 * 1000; // 5 minutes
 
 exports.resendOtp = async (req, res) => {
   const { mobile } = req.body;
 
   try {
-    await connectRedis(); // Ensure Redis connection
+    const otpRecord = await OTP.findOne({ mobile });
 
-    // Check if OTP is already requested within cooldown period (e.g., 30 sec)
-    const existingOtp = await client.get(`otp:${mobile}`);
-    if (existingOtp) {
-      return res.status(429).json({
-        message: "OTP already sent. Please wait before requesting again.",
-      });
+    // If OTP exists, check cooldown and expiration
+    if (otpRecord) {
+      const now = Date.now();
+
+      // Check cooldown period (e.g., 30 seconds)
+      if (now - otpRecord.updatedAt.getTime() < OTP_COOLDOWN) {
+        return res.status(429).json({
+          message: "OTP already sent. Please wait before requesting again.",
+        });
+      }
     }
 
+    // Generate a new OTP
     const otp = generateOTP();
-    const otpExpiry = parseInt(process.env.OTP_EXPIRY) * 60; // Convert minutes to seconds
+    const hashedOtp = await bcrypt.hash(otp, 10);
+    const expiryTime = new Date(Date.now() + OTP_EXPIRY);
 
-    // Store new OTP in Redis
-    await client.setEx(`otp:${mobile}`, otpExpiry, otp);
+    // Update or insert OTP record
+    await OTP.findOneAndUpdate(
+      { mobile },
+      { otp: hashedOtp, expiresAt: expiryTime },
+      { upsert: true, new: true }
+    );
 
-    // Send OTP via Twilio
+    // Send OTP via SMS
     await sendOTP(mobile, otp);
 
     res.status(200).json({ message: "OTP resent successfully" });
@@ -38,22 +53,17 @@ exports.sendOtp = async (req, res) => {
   const { mobile } = req.body;
 
   try {
-    await connectRedis(); // Ensure Redis connection
-
     const otp = generateOTP();
-    const otpExpiry = parseInt(process.env.OTP_EXPIRY) * 60; // Convert minutes to seconds
+    const hashedOtp = await bcrypt.hash(otp, 10); // Hash OTP before storing
+    const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
 
-    // Store OTP in Redis (expires after OTP_EXPIRY minutes)
-    await client.setEx(`otp:${mobile}`, otpExpiry, otp);
+    await OTP.findOneAndUpdate(
+      { mobile },
+      { otp: hashedOtp, expiresAt: otpExpiry },
+      { upsert: true, new: true }
+    );
 
-    console.log(`OTP Expiry Time: ${otpExpiry} seconds`);
-    console.log(`Generated OTP for ${mobile}: ${otp}`);
-
-    // **Wait for Redis to process the OTP**
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Send OTP via Twilio
-    await sendOTP(mobile, otp);
+    await sendOTP(mobile, otp); // Send actual OTP via SMS
 
     res.status(200).json({ message: "OTP sent successfully" });
   } catch (err) {
@@ -66,19 +76,19 @@ exports.verifyOtp = async (req, res) => {
   const { mobile, otp, name, email, address } = req.body;
 
   try {
-    await connectRedis(); // Ensure Redis connection
+    const otpRecord = await OTP.findOne({ mobile });
 
-    // Get OTP from Redis
-    const storedOtp = await client.get(`otp:${mobile}`);
-
-    console.log(`Stored OTP: ${storedOtp}, Received OTP: ${otp}`);
-
-    if (!storedOtp || storedOtp !== otp) {
+    if (!otpRecord) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
-    await client.del(`otp:${mobile}`);
+    const isOtpValid = await bcrypt.compare(otp, otpRecord.otp);
 
+    if (!isOtpValid || otpRecord.expiresAt < new Date()) {
+      return res.status(400).json({ message: "Invalid or expired OTP" });
+    }
+
+    await OTP.deleteOne({ mobile }); // Delete OTP after successful verification
     let user = await User.findOne({ mobile });
 
     // If user exists, update verification status and log them in
