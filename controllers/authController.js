@@ -48,12 +48,10 @@ exports.sendOtp = async (req, res) => {
     // Store OTP in Redis (expires after OTP_EXPIRY minutes)
     await client.setEx(`otp:${mobile}`, otpExpiry, otp);
 
-    await client.quit();
-
     // Send OTP via Twilio
     await sendOTP(mobile, otp);
 
-    await client.quit();
+    client.quit();
 
     res.status(200).json({ message: "OTP sent successfully" });
   } catch (err) {
