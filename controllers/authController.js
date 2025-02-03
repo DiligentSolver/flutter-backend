@@ -54,6 +54,9 @@ exports.sendOtp = async (req, res) => {
     // Send OTP via Twilio
     await sendOtp(mobile, otp);
 
+    // Get OTP from Redis
+    const storedOtp = await client.get(`otp:${mobile}`);
+
     console.log("OTP Expiry Time:", otpExpiry);
     console.log("Stored OTP:", storedOtp, "Received OTP:", otp);
 
