@@ -9,6 +9,7 @@ exports.resendOtp = async (req, res) => {
 
   try {
     await connectRedis(); // Ensure Redis connection
+
     // Check if OTP is already requested within cooldown period (e.g., 30 sec)
     const existingOtp = await client.get(`otp:${mobile}`);
     if (existingOtp) {
@@ -18,7 +19,7 @@ exports.resendOtp = async (req, res) => {
     }
 
     const otp = generateOTP();
-    const otpExpiry = process.env.OTP_EXPIRY * 60; // Convert minutes to seconds
+    const otpExpiry = parseInt(process.env.OTP_EXPIRY) * 60; // Convert minutes to seconds
 
     // Store new OTP in Redis
     await client.setEx(`otp:${mobile}`, otpExpiry, otp);
@@ -37,21 +38,17 @@ exports.sendOtp = async (req, res) => {
   const { mobile } = req.body;
 
   try {
-    // Ensure Redis client is connected
-    await connectRedis();
+    await connectRedis(); // Ensure Redis connection
 
     await client.del(`otp:${mobile}`); // Delete any old OTP before storing a new one
     const otp = generateOTP();
-    const otpExpiry = process.env.OTP_EXPIRY * 60; // Convert minutes to seconds
+    const otpExpiry = parseInt(process.env.OTP_EXPIRY) * 60; // Convert minutes to seconds
 
     // Store OTP in Redis (expires after OTP_EXPIRY minutes)
     await client.setEx(`otp:${mobile}`, otpExpiry, otp);
 
-    // Get OTP from Redis
-    const storedOtp = await client.get(`otp:${mobile}`);
-
-    console.log("OTP Expiry Time:", otpExpiry);
-    console.log("Stored OTP:", storedOtp, "Generated OTP:", otp);
+    console.log(`OTP Expiry Time: ${otpExpiry} seconds`);
+    console.log(`Generated OTP for ${mobile}: ${otp}`);
 
     // Send OTP via Twilio
     await sendOTP(mobile, otp);
@@ -67,22 +64,23 @@ exports.verifyOtp = async (req, res) => {
   const { mobile, otp, name, email, address } = req.body;
 
   try {
+    await connectRedis(); // Ensure Redis connection
+
     // Get OTP from Redis
     const storedOtp = await client.get(`otp:${mobile}`);
 
     if (!storedOtp || storedOtp !== otp) {
-      await client.quit();
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
-    console.log("Stored OTP:", storedOtp, "Received OTP:", otp);
+
+    console.log(`Stored OTP: ${storedOtp}, Received OTP: ${otp}`);
+
     // Delete OTP from Redis after verification
     await client.del(`otp:${mobile}`);
 
-    await client.quit();
-
     let user = await User.findOne({ mobile });
 
-    // If user exists, just log them in
+    // If user exists, update verification status and log them in
     if (user) {
       user.isVerified = true;
       await user.save();
@@ -127,6 +125,5 @@ exports.verifyOtp = async (req, res) => {
   } catch (err) {
     console.error("Error verifying OTP:", err);
     res.status(500).json({ error: "Failed to verify OTP. Please try again." });
-    await client.quit();
   }
 };
