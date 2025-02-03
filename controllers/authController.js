@@ -40,7 +40,6 @@ exports.sendOtp = async (req, res) => {
   try {
     await connectRedis(); // Ensure Redis connection
 
-    await client.del(`otp:${mobile}`); // Delete any old OTP before storing a new one
     const otp = generateOTP();
     const otpExpiry = parseInt(process.env.OTP_EXPIRY) * 60; // Convert minutes to seconds
 
@@ -74,9 +73,6 @@ exports.verifyOtp = async (req, res) => {
     if (!storedOtp || storedOtp !== otp) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
-
-    // Delete OTP from Redis after verification
-    await client.del(`otp:${mobile}`);
 
     let user = await User.findOne({ mobile });
 
