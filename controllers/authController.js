@@ -46,11 +46,11 @@ exports.sendOtp = async (req, res) => {
     const otp = generateOTP();
     const otpExpiry = process.env.OTP_EXPIRY * 60; // Convert minutes to seconds
 
-    // Get OTP from Redis
-    const storedOtp = await client.get(`otp:${mobile}`);
-
     // Store OTP in Redis (expires after OTP_EXPIRY minutes)
     await client.setEx(`otp:${mobile}`, otpExpiry, otp);
+
+    // Get OTP from Redis
+    const storedOtp = await client.get(`otp:${mobile}`);
 
     await client.quit();
 
@@ -81,6 +81,11 @@ exports.verifyOtp = async (req, res) => {
       await client.quit();
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
+
+    // Delete OTP from Redis after verification
+    await client.del(`otp:${mobile}`);
+
+    await client.quit();
 
     let user = await User.findOne({ mobile });
 
