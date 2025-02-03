@@ -12,39 +12,44 @@ const OTP_EXPIRY = 5 * 60 * 1000; // 5 minutes
 exports.resendOtp = async (req, res) => {
   const { mobile } = req.body;
 
+  console.log(`[resendOtp] Received request for mobile: ${mobile}`);
+
   try {
     const otpRecord = await OTP.findOne({ mobile });
+    console.log(`[resendOtp] Found OTP record:`, otpRecord);
 
-    // If OTP exists, check cooldown and expiration
     if (otpRecord) {
       const now = Date.now();
+      console.log(`[resendOtp] Checking cooldown...`);
 
-      // Check cooldown period (e.g., 30 seconds)
       if (now - otpRecord.updatedAt.getTime() < OTP_COOLDOWN) {
+        console.warn(`[resendOtp] Cooldown active. OTP request denied.`);
         return res.status(429).json({
           message: "OTP already sent. Please wait before requesting again.",
         });
       }
     }
 
-    // Generate a new OTP
     const otp = generateOTP();
+    console.log(`[resendOtp] Generated OTP: ${otp}`);
+
     const hashedOtp = await bcrypt.hash(otp, 10);
     const expiryTime = new Date(Date.now() + OTP_EXPIRY);
 
-    // Update or insert OTP record
     await OTP.findOneAndUpdate(
       { mobile },
       { otp: hashedOtp, expiresAt: expiryTime },
       { upsert: true, new: true }
     );
 
-    // Send OTP via SMS
+    console.log(`[resendOtp] OTP saved to database. Expiry: ${expiryTime}`);
+
     await sendOTP(mobile, otp);
+    console.log(`[resendOtp] OTP sent successfully to ${mobile}`);
 
     res.status(200).json({ message: "OTP resent successfully" });
   } catch (err) {
-    console.error("Error resending OTP:", err);
+    console.error(`[resendOtp] Error resending OTP:`, err);
     res.status(500).json({ error: "Failed to resend OTP. Please try again." });
   }
 };
@@ -52,10 +57,14 @@ exports.resendOtp = async (req, res) => {
 exports.sendOtp = async (req, res) => {
   const { mobile } = req.body;
 
+  console.log(`[sendOtp] Received request for mobile: ${mobile}`);
+
   try {
     const otp = generateOTP();
-    const hashedOtp = await bcrypt.hash(otp, 10); // Hash OTP before storing
-    const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
+    console.log(`[sendOtp] Generated OTP: ${otp}`);
+
+    const hashedOtp = await bcrypt.hash(otp, 10);
+    const otpExpiry = new Date(Date.now() + OTP_EXPIRY);
 
     await OTP.findOneAndUpdate(
       { mobile },
@@ -63,11 +72,14 @@ exports.sendOtp = async (req, res) => {
       { upsert: true, new: true }
     );
 
-    await sendOTP(mobile, otp); // Send actual OTP via SMS
+    console.log(`[sendOtp] OTP saved to database. Expiry: ${otpExpiry}`);
+
+    await sendOTP(mobile, otp);
+    console.log(`[sendOtp] OTP sent successfully to ${mobile}`);
 
     res.status(200).json({ message: "OTP sent successfully" });
   } catch (err) {
-    console.error("Error sending OTP:", err);
+    console.error(`[sendOtp] Error sending OTP:`, err);
     res.status(500).json({ error: "Failed to send OTP. Please try again." });
   }
 };
@@ -75,24 +87,35 @@ exports.sendOtp = async (req, res) => {
 exports.verifyOtp = async (req, res) => {
   const { mobile, otp, name, email, address } = req.body;
 
+  console.log(
+    `[verifyOtp] Received request for mobile: ${mobile}, OTP: ${otp}`
+  );
+
   try {
     const otpRecord = await OTP.findOne({ mobile });
+    console.log(`[verifyOtp] OTP record found:`, otpRecord);
 
     if (!otpRecord) {
+      console.warn(`[verifyOtp] No OTP record found or expired.`);
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
     const isOtpValid = await bcrypt.compare(otp, otpRecord.otp);
+    console.log(`[verifyOtp] OTP validation result: ${isOtpValid}`);
 
     if (!isOtpValid || otpRecord.expiresAt < new Date()) {
+      console.warn(`[verifyOtp] OTP is invalid or expired.`);
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
-    await OTP.deleteOne({ mobile }); // Delete OTP after successful verification
+    await OTP.deleteOne({ mobile });
+    console.log(`[verifyOtp] OTP deleted after successful verification.`);
+
     let user = await User.findOne({ mobile });
 
-    // If user exists, update verification status and log them in
     if (user) {
+      console.log(`[verifyOtp] Existing user found:`, user);
+
       user.isVerified = true;
       await user.save();
 
@@ -100,6 +123,7 @@ exports.verifyOtp = async (req, res) => {
         expiresIn: "7d",
       });
 
+      console.log(`[verifyOtp] OTP verified. User logged in.`);
       return res.status(200).json({
         message: "OTP verified successfully",
         token,
@@ -107,8 +131,8 @@ exports.verifyOtp = async (req, res) => {
       });
     }
 
-    // If user is new, require additional data
     if (!name || !email || !address) {
+      console.warn(`[verifyOtp] New user missing required details.`);
       return res
         .status(400)
         .json({ message: "New users must provide name, email, and address" });
@@ -123,6 +147,7 @@ exports.verifyOtp = async (req, res) => {
     });
 
     await newUser.save();
+    console.log(`[verifyOtp] New user registered successfully:`, newUser);
 
     const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
       expiresIn: "7d",
@@ -134,7 +159,7 @@ exports.verifyOtp = async (req, res) => {
       user: newUser,
     });
   } catch (err) {
-    console.error("Error verifying OTP:", err);
+    console.error(`[verifyOtp] Error verifying OTP:`, err);
     res.status(500).json({ error: "Failed to verify OTP. Please try again." });
   }
 };
