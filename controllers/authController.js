@@ -70,6 +70,7 @@ exports.verifyOtp = async (req, res) => {
     const storedOtp = await client.get(`otp:${mobile}`);
 
     if (!storedOtp || storedOtp !== otp) {
+      console.log("Received OTP: ${otp}");
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
