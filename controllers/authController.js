@@ -8,8 +8,6 @@ exports.resendOtp = async (req, res) => {
   const { mobile } = req.body;
 
   try {
-    await connectRedis(); // Ensure Redis connection
-
     // Check if OTP is already requested within cooldown period (e.g., 30 sec)
     const existingOtp = await client.get(`otp:${mobile}`);
     if (existingOtp) {
