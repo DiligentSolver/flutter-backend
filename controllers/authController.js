@@ -40,16 +40,20 @@ exports.sendOtp = async (req, res) => {
   const { mobile } = req.body;
 
   try {
-    await connectRedis(); // Ensure Redis connection
+    await connectRedis();
 
-    // Delete any existing OTP before sending a new one
+    // Delete previous OTP before generating a new one
     await client.del(`otp:${mobile}`);
 
     const otp = generateOTP();
-    const otpExpiry = process.env.OTP_EXPIRY * 60; // Convert minutes to seconds
+    const otpExpiry = process.env.OTP_EXPIRY * 60;
 
     // Store OTP in Redis
     await client.setEx(`otp:${mobile}`, otpExpiry, otp);
+
+    // Fetch the stored OTP right after setting it (for debugging)
+    const storedOtp = await client.get(`otp:${mobile}`);
+    console.log(`Generated OTP: ${otp}, Stored OTP in Redis: ${storedOtp}`);
 
     // Send OTP via Twilio
     await sendOTP(mobile, otp);
@@ -59,7 +63,7 @@ exports.sendOtp = async (req, res) => {
     console.error("Error sending OTP:", err);
     res.status(500).json({ error: "Failed to send OTP. Please try again." });
   } finally {
-    await client.quit(); // Ensure Redis client quits after operation
+    await client.quit();
   }
 };
 
