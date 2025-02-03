@@ -66,8 +66,6 @@ exports.verifyOtp = async (req, res) => {
   const { mobile, otp, name, email, address } = req.body;
 
   try {
-    await connectRedis(); // Ensure Redis connection
-
     // Get OTP from Redis
     const storedOtp = await client.get(`otp:${mobile}`);
 
